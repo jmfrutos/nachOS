@@ -68,7 +68,6 @@ void returnFromSystemCall() {
 	machine->WriteRegister( NextPCReg, npc + 4 ); 	// NextPC <- NextPC + 4
 }
 
-
 char* readName(int addr){
 	// Retorna el nombre del fichero guardado en una posición de memoria.
 	char* name = new char[20];
