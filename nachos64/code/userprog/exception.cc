@@ -114,9 +114,20 @@ void Nachos_Halt() {
 }       // Nachos_Halt
 
 void Nachos_Exit() {
-	int status;
+	int status = machine->ReadRegister(4);
+	int thread = currentThread->getThreadID();
+	
+	memoryManager->deleteAddrSpace(thread);
 	DEBUG('a', "Exit SystemCall.\n");
-	status = machine->ReadRegister(4); 	//Primer parametro
+	currentThread->setExitStatus(status);
+	
+	if (currentThread->getParent()-getStatus == BLOKED) {
+		scheduler->ReadyToRun(currentThread->getParent());
+		
+	}
+	
+	currentThread->Finish();
+	
 	DEBUG('a', "Program exits with status: %d\n", status);
 }
 
