@@ -1,0 +1,94 @@
+void Nachos_Open(){
+	/* System call definition described to user
+		int Open(
+			char *name	// Register 4 - Dirección de la memoria donde está el nombre del archivo que se abrirá.
+		);
+	*/
+	DEBUG('u', "Opening file.\n");
+	int addr = machine->ReadRegister(4);
+	char* filename = readName(addr); 						// Read the name from the user memory, see 4 below
+	int openId = open(filename, O_RDWR|O_CREAT,S_IRWXU); 	// Use NachosOpenFilesTable class to create a relationship
+	if(openId != -1){										// between user file and unix file
+		int NachosHandle = tablaOpenFiles->Open(openId);
+		machine->WriteRegister(2, NachosHandle); 			// NachosHandle del archivo que esta abierto. En caso error devuelve -1.
+		printf("Opened file: \"%s\" \n", filename);
+	}
+	else{
+		printf("File could not be opened\n");
+		machine->WriteRegister(2,-1);						//Retorna -1 para indicar que hay un error.
+	}
+}
+
+void Nachos_Halt() {                    
+		// System call 0
+        DEBUG('a', "Shutdown, initiated by user program.\n");
+        interrupt->Halt();
+}       // Nachos_Halt
+
+void Nachos_Write(){
+	/* System call definition described to user
+        void Write(
+		char *buffer,							// Register 4 - Dirección del Buffer.
+		int size,								// Register 5 - Cantidad de Bytes a Escribir
+		OpenFileId id							// Register 6 - Id del archivo donde se escribe.
+	);
+	*/
+	DEBUG('u', "Writing in file.\n");
+	int addr = machine->ReadRegister(4);		// Read file address
+	char* buffer = readName(addr);
+	int size = machine->ReadRegister(5);		// Read size to write
+	OpenFileId id = machine->ReadRegister(6);	// Read file descriptor
+	int ret = -1;
+	//Se supone que aqui se agrega un semaforo.
+	switch (id) {
+		case  ConsoleInput:						// User could not write to standard input
+			machine->WriteRegister( 2, -1 );
+			break;
+		case  ConsoleOutput:
+			buffer[ size ] = 0;
+			printf( "%s", buffer );
+	      
+
+		break;
+		case ConsoleError:						// This trick permits to write integers to console
+			printf( "%d\n", machine->ReadRegister( 4 ) );
+			break;
+		default:								// All other opened files
+			if(id > 1){
+				if(tablaOpenFiles->isOpened(id)){						// Verify if the file is opened, if not return -1 in r2
+					int unixHandle = tablaOpenFiles->getUnixHandle(id); // Get the unix handle from our table for open files
+					ret = write(unixHandle, (void*)buffer, size);		// Do the write to the already opened Unix file
+					if(ret != -1){				
+						ret = size;				
+						printf("Wrote %d bytes in file.\n", ret);
+					}
+					else{
+						printf("Couldn't write in file.\n");
+					}
+				}
+				else{
+					printf("The file isn't opened.\n");
+					ret = -1;
+				}
+			} 
+			else {
+				ret = write(id, (void*)buffer, size);
+			}
+			machine->WriteRegister(2, ret);		// Return the number of chars written to user, via r2
+	}
+	
+	returnFromSystemCall(); 					// Update the PC registers
+}
+
+void returnFromSystemCall() {
+	/* 
+		Controla el valor de retorno del system call.
+	*/
+	int pc, npc;
+	
+	pc = machine->ReadRegister( PCReg );
+	npc = machine->ReadRegister( NextPCReg );
+	machine->WriteRegister( PrevPCReg, pc );		// PrevPC <- PC
+	machine->WriteRegister( PCReg, npc ); 			// PC <- NextPC
+	machine->WriteRegister( NextPCReg, npc + 4 ); 	// NextPC <- NextPC + 4
+}
