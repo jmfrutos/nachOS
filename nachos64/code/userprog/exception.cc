@@ -282,8 +282,6 @@ void Nachos_Write(){
 	returnFromSystemCall(); 					// Update the PC registers
 }
 
-
-
 void ExceptionHandler(ExceptionType which) {
 	int type = machine->ReadRegister(2); 
 	if ((which == SyscallException)) {
@@ -359,22 +357,5 @@ void ExceptionHandler(ExceptionType which) {
 		printf("Unexpected user mode exception %d %d\n", which, type);
 		ASSERT(false);
 	}
-}
-
-void CleanupAndExit() {
-	SpaceId pid;
-	//pid = currentThread->space->getPCB()->getPID();
-
-//	currentThread->space->getPCB()->cleanupFileEntries();
-
-//	currentThread->space->freeFrames();
-
-//	currentThread->space->getPCB()->parentBlockSem->V();
-	
-//	procTable->removeProcess(pid);
-	if(--(*procNumber))
-		currentThread->Finish();
-	else
-		interrupt->Halt();
 }
 
