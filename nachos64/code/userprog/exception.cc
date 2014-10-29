@@ -149,6 +149,66 @@ void Nachos_Exec() //modificar
 	machine->PCForward();
 }
 
+void Nachos_Join()
+{
+    Thread *childThread;
+    int exitStatus = 0;
+    int childThreadId = machine->ReadRegister(4);
+    
+    // Check the waiting child thread whether in the exited child list or not.
+    childThread = currentThread->removeExitedChild(childThreadId);
+    while (childThread == NULL)
+    {
+        // If the child thread is not in the exited child list, current thread sleep.
+        currentThread->Sleep();
+        childThread = currentThread->removeExitedChild(childThreadId);
+    }
+
+    // Get child thread's exit status.
+    exitStatus = childThread->getExitStatus();
+
+    // Clean up resources of child thread and destroy it.
+    childThread->cleanUpBeforeDestroy();
+    threadManager->deleteThread(childThread);
+
+    // Return the child thread's exit status.
+    machine->WriteRegister(2, exitStatus);
+
+	machine->PCForward();
+}
+
+void Nachos_Fork()
+{
+	Thread* thread = threadManager->createThread("UserProg");
+	thread->space = memoryManager->shareAddrSpace(currentThread->getThreadID(),
+												  thread->getThreadID());
+	int userFunc = machine->ReadRegister(4);
+
+    // Copy machine registers of current thread to new thread
+    thread->SaveUserState(); 
+
+    // Modify PC/SP register of new thread
+	thread->SetUserRegister(PCReg, userFunc);
+	thread->SetUserRegister(NextPCReg, userFunc + 4);
+    // Every thread has its own private stack space
+	thread->SetUserRegister(StackReg, thread->space->getThreadStackTop(thread->getThreadID()));
+
+	DEBUG('a', "Fork from thread %d -> thread %d\n", 
+			currentThread->getThreadID(),
+			thread->getThreadID());
+
+	thread->Fork(ThreadFuncForUserProg, 0);
+
+	machine->PCForward();
+}
+
+void Nachos_Yield()
+{
+	currentThread->Yield();
+
+	machine->PCForward();
+}
+
 void Nachos_Exit() {
 	int status = machine->ReadRegister(4);
 	int thread = currentThread->getThreadID();
@@ -238,12 +298,15 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #2
 			case SC_Exec:
+				Nachos_Exec();
 				break;
 			//System call #3
 			case SC_Join:
+				Nachos_Join();
 				break;
 			//System call #4
 			case SC_Create:
+				//FALTA
 				break;
 			//System call #5
 			case SC_Open:
@@ -251,6 +314,7 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #6
 			case SC_Read:
+				//FALTA
 				break;
 			//System call #7
 			case SC_Write:
@@ -258,24 +322,31 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #8
 			case SC_Close:
+				//FALTA
 				break;
 			//System call #9
 			case SC_Fork:
+				Nachos_Fork();
 				break;
 			//System call #10
 			case SC_Yield:
+				Nachos_Yield();
 				break;
 			//System call #11
 			case SC_SemCreate:
+				//FALTA
 				break;
 			//System call #12
 			case SC_SemDestroy:
+				//FALTA
 				break;
 			//System call #13
 			case SC_SemSignal:
+				//FALTA
 				break;
 			//System call #14
 			case SC_SemWait:
+				//FALTA
 				break;
 			default:{
 				printf( "Unexpected syscall exception %d\n", which );
