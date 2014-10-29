@@ -113,6 +113,42 @@ void Nachos_Halt() {
         interrupt->Halt();
 }       // Nachos_Halt
 
+void Nachos_Exec() //modificar
+{
+	char fileName[100];
+	int arg = machine->ReadRegister(4);
+	int i = 0;
+
+    // Get the executable file name from user space.
+	do
+	{
+		machine->ReadMem(arg + i, 1, (int*)&fileName[i]);
+	}while(fileName[i++] != '\0');
+
+    // Abre el archivo ejecutable
+	OpenFile* executable = fileSystem->Open(fileName);
+	if (executable != NULL)	
+	{
+        // Set up a new thread and alloc address space for it.
+		Thread* thread = threadManager->createThread(fileName);
+		thread->space = memoryManager->createAddrSpace(thread->getThreadID(), executable);
+
+        // Return the new thread id.
+		machine->WriteRegister(2, thread->getThreadID());
+
+		DEBUG('a', "Exec from thread %d -> executable %s\n", 
+				currentThread->getThreadID(), fileName);
+		thread->Fork(ThreadFuncForUserProg, 1);
+	}
+	else
+	{
+        // Can't open executable file, so return -1.
+		machine->WriteRegister(2, -1);
+	}
+	
+	machine->PCForward();
+}
+
 void Nachos_Exit() {
 	int status = machine->ReadRegister(4);
 	int thread = currentThread->getThreadID();
