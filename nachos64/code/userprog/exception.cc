@@ -234,7 +234,7 @@ void Nachos_Write(){
 		int size,								// Register 5 - Cantidad de Bytes a Escribir
 		OpenFileId id							// Register 6 - Id del archivo donde se escribe.
 	);
-	*/
+	*//*
 	DEBUG('u', "Writing in file.\n");
 	int addr = machine->ReadRegister(4);		// Read file address
 	char* buffer = readName(addr);
@@ -278,7 +278,7 @@ void Nachos_Write(){
 			}
 			machine->WriteRegister(2, ret);		// Return the number of chars written to user, via r2			
 	}
-	
+	*/
 	returnFromSystemCall(); 					// Update the PC registers
 }
 
