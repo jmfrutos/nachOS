@@ -20,7 +20,7 @@
 // Copyright (c) 1992-1993 The Regents of the University of California.
 // All rights reserved.  See copyright.h for copyright notice and limitation 
 // of liability and disclaimer of warranty provisions.
-
+//borra
 #include <sys/stat.h> 
 #include <fcntl.h>
 #include <unistd.h>
@@ -113,10 +113,117 @@ void Nachos_Halt() {
         interrupt->Halt();
 }       // Nachos_Halt
 
+void Nachos_Exec() //modificar
+{
+	char fileName[100];
+	int arg = machine->ReadRegister(4);
+	int i = 0;
+
+    // Get the executable file name from user space.
+	do
+	{
+		machine->ReadMem(arg + i, 1, (int*)&fileName[i]);
+	}while(fileName[i++] != '\0');
+
+    // Abre el archivo ejecutable
+	OpenFile* executable = fileSystem->Open(fileName);
+	if (executable != NULL)	
+	{
+        // Set up a new thread and alloc address space for it.
+		Thread* thread = threadManager->createThread(fileName);
+		thread->space = memoryManager->createAddrSpace(thread->getThreadID(), executable);
+
+        // Return the new thread id.
+		machine->WriteRegister(2, thread->getThreadID());
+
+		DEBUG('a', "Exec from thread %d -> executable %s\n", 
+				currentThread->getThreadID(), fileName);
+		thread->Fork(ThreadFuncForUserProg, 1);
+	}
+	else
+	{
+        // Can't open executable file, so return -1.
+		machine->WriteRegister(2, -1);
+	}
+	
+	machine->PCForward();
+}
+
+void Nachos_Join()
+{
+    Thread *childThread;
+    int exitStatus = 0;
+    int childThreadId = machine->ReadRegister(4);
+    
+    // Check the waiting child thread whether in the exited child list or not.
+    childThread = currentThread->removeExitedChild(childThreadId);
+    while (childThread == NULL)
+    {
+        // If the child thread is not in the exited child list, current thread sleep.
+        currentThread->Sleep();
+        childThread = currentThread->removeExitedChild(childThreadId);
+    }
+
+    // Get child thread's exit status.
+    exitStatus = childThread->getExitStatus();
+
+    // Clean up resources of child thread and destroy it.
+    childThread->cleanUpBeforeDestroy();
+    threadManager->deleteThread(childThread);
+
+    // Return the child thread's exit status.
+    machine->WriteRegister(2, exitStatus);
+
+	machine->PCForward();
+}
+
+void Nachos_Fork()
+{
+	Thread* thread = threadManager->createThread("UserProg");
+	thread->space = memoryManager->shareAddrSpace(currentThread->getThreadID(),
+												  thread->getThreadID());
+	int userFunc = machine->ReadRegister(4);
+
+    // Copy machine registers of current thread to new thread
+    thread->SaveUserState(); 
+
+    // Modify PC/SP register of new thread
+	thread->SetUserRegister(PCReg, userFunc);
+	thread->SetUserRegister(NextPCReg, userFunc + 4);
+    // Every thread has its own private stack space
+	thread->SetUserRegister(StackReg, thread->space->getThreadStackTop(thread->getThreadID()));
+
+	DEBUG('a', "Fork from thread %d -> thread %d\n", 
+			currentThread->getThreadID(),
+			thread->getThreadID());
+
+	thread->Fork(ThreadFuncForUserProg, 0);
+
+	machine->PCForward();
+}
+
+void Nachos_Yield()
+{
+	currentThread->Yield();
+
+	machine->PCForward();
+}
+
 void Nachos_Exit() {
-	int status;
+	int status = machine->ReadRegister(4);
+	int thread = currentThread->getThreadID();
+	
+	memoryManager->deleteAddrSpace(thread);
 	DEBUG('a', "Exit SystemCall.\n");
-	status = machine->ReadRegister(4); 	//Primer parametro
+	currentThread->setExitStatus(status);
+	
+	if (currentThread->getParent()-getStatus == BLOKED) {
+		scheduler->ReadyToRun(currentThread->getParent());
+		
+	}
+	
+	currentThread->Finish();
+	
 	DEBUG('a', "Program exits with status: %d\n", status);
 }
 
@@ -175,8 +282,6 @@ void Nachos_Write(){
 	returnFromSystemCall(); 					// Update the PC registers
 }
 
-
-
 void ExceptionHandler(ExceptionType which) {
 	int type = machine->ReadRegister(2); 
 	if ((which == SyscallException)) {
@@ -191,12 +296,15 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #2
 			case SC_Exec:
+				Nachos_Exec();
 				break;
 			//System call #3
 			case SC_Join:
+				Nachos_Join();
 				break;
 			//System call #4
 			case SC_Create:
+				//FALTA
 				break;
 			//System call #5
 			case SC_Open:
@@ -204,6 +312,7 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #6
 			case SC_Read:
+				//FALTA
 				break;
 			//System call #7
 			case SC_Write:
@@ -211,24 +320,31 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #8
 			case SC_Close:
+				//FALTA
 				break;
 			//System call #9
 			case SC_Fork:
+				Nachos_Fork();
 				break;
 			//System call #10
 			case SC_Yield:
+				Nachos_Yield();
 				break;
 			//System call #11
 			case SC_SemCreate:
+				//FALTA
 				break;
 			//System call #12
 			case SC_SemDestroy:
+				//FALTA
 				break;
 			//System call #13
 			case SC_SemSignal:
+				//FALTA
 				break;
 			//System call #14
 			case SC_SemWait:
+				//FALTA
 				break;
 			default:{
 				printf( "Unexpected syscall exception %d\n", which );
@@ -241,22 +357,5 @@ void ExceptionHandler(ExceptionType which) {
 		printf("Unexpected user mode exception %d %d\n", which, type);
 		ASSERT(false);
 	}
-}
-
-void CleanupAndExit() {
-	SpaceId pid;
-	//pid = currentThread->space->getPCB()->getPID();
-
-//	currentThread->space->getPCB()->cleanupFileEntries();
-
-//	currentThread->space->freeFrames();
-
-//	currentThread->space->getPCB()->parentBlockSem->V();
-	
-	procTable->removeProcess(pid);
-	if(--(*procNumber))
-		currentThread->Finish();
-	else
-		interrupt->Halt();
 }
 
