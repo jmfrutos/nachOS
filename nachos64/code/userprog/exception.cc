@@ -114,7 +114,7 @@ void Nachos_Halt() {
 }       // Nachos_Halt
 
 void Nachos_Exec() //modificar
-{
+{/*
 	char fileName[100];
 	int arg = machine->ReadRegister(4);
 	int i = 0;
@@ -146,11 +146,11 @@ void Nachos_Exec() //modificar
 		machine->WriteRegister(2, -1);
 	}
 	
-	machine->PCForward();
+	machine->PCForward();*/
 }
 
 void Nachos_Join()
-{
+{/*
     Thread *childThread;
     int exitStatus = 0;
     int childThreadId = machine->ReadRegister(4);
@@ -174,11 +174,11 @@ void Nachos_Join()
     // Return the child thread's exit status.
     machine->WriteRegister(2, exitStatus);
 
-	machine->PCForward();
+	machine->PCForward();*/
 }
 
 void Nachos_Fork()
-{
+{/*
 	Thread* thread = threadManager->createThread("UserProg");
 	thread->space = memoryManager->shareAddrSpace(currentThread->getThreadID(),
 												  thread->getThreadID());
@@ -199,14 +199,14 @@ void Nachos_Fork()
 
 	thread->Fork(ThreadFuncForUserProg, 0);
 
-	machine->PCForward();
+	machine->PCForward();*/
 }
 
 void Nachos_Yield()
 {
 	currentThread->Yield();
 
-	machine->PCForward();
+	returnFromSystemCall(); 
 }
 
 void Nachos_Exit() {
