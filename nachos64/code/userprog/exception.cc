@@ -28,7 +28,10 @@
 #include "copyright.h"
 #include "system.h"
 #include "syscall.h"
+#include "sych.h"
 #include "OpenFilesTable.h"
+
+static void ThreadFuncForUserProg(int arg);
 
 //----------------------------------------------------------------------
 // ExceptionHandler
@@ -52,8 +55,6 @@
 //	"which" is the kind of exception.  The list of possible exceptions 
 //	are in machine.h.
 //----------------------------------------------------------------------
-
-OpenFilesTable *tablaOpenFiles;
 
 void returnFromSystemCall() {
 	/* 
@@ -86,6 +87,33 @@ char* readName(int addr){
 	return name;						//Se devuelve el nombre del archivo.
 }
 
+// A dummy handler function of user program's Fork/Exec. The main purpose of this
+// function is to run virtual machine in nachos(machine->Run()). Before do that,
+// Fork need to restore virtual machine's registers and Exec need to init virtual
+// machine's registers and pageTable.
+static void ThreadFuncForUserProg(int arg)
+{
+    switch (arg)
+    {
+        case 0: // Fork
+            // Fork just restore registers.
+            currentThread->RestoreUserState();
+            break;
+        case 1: // Exec
+            if (currentThread->space != NULL)
+            {
+                // Exec should initialize registers and restore address space.
+                currentThread->space->InitRegisters();
+                currentThread->space->RestoreState();
+            }
+            break;
+        default:
+            break;
+    }
+
+	machine->Run();
+}
+
 void Nachos_Open(){
 	/* System call definition described to user
 		int Open(
@@ -114,92 +142,68 @@ void Nachos_Halt() {
 }       // Nachos_Halt
 
 void Nachos_Exec() //modificar
-{/*
+{
 	char fileName[100];
 	int arg = machine->ReadRegister(4);
 	int i = 0;
 
-    // Get the executable file name from user space.
+    // Trae el nombre del archivo.
 	do
 	{
 		machine->ReadMem(arg + i, 1, (int*)&fileName[i]);
-	}while(fileName[i++] != '\0');
+	} while (fileName[i++] != '\0');
 
     // Abre el archivo ejecutable
 	OpenFile* executable = fileSystem->Open(fileName);
 	if (executable != NULL)	
 	{
-        // Set up a new thread and alloc address space for it.
-		Thread* thread = threadManager->createThread(fileName);
-		thread->space = memoryManager->createAddrSpace(thread->getThreadID(), executable);
+        Thread* thread = new Thread(fileName);
+		
+        // Devuelve el ID
+		machine->WriteRegister(2, thread->getName());
 
-        // Return the new thread id.
-		machine->WriteRegister(2, thread->getThreadID());
-
-		DEBUG('a', "Exec from thread %d -> executable %s\n", 
-				currentThread->getThreadID(), fileName);
+		DEBUG('a', "Exec desde thread %d -> executable %s\n", 
+				currentThread->getName(), fileName);
 		thread->Fork(ThreadFuncForUserProg, 1);
 	}
 	else
 	{
-        // Can't open executable file, so return -1.
+        // Si no se puede abrir devuelve -1.
 		machine->WriteRegister(2, -1);
 	}
 	
-	machine->PCForward();*/
+	returnFromSystemCall();
 }
 
 void Nachos_Join()
-{/*
+{
     Thread *childThread;
     int exitStatus = 0;
     int childThreadId = machine->ReadRegister(4);
     
-    // Check the waiting child thread whether in the exited child list or not.
-    childThread = currentThread->removeExitedChild(childThreadId);
-    while (childThread == NULL)
-    {
-        // If the child thread is not in the exited child list, current thread sleep.
-        currentThread->Sleep();
-        childThread = currentThread->removeExitedChild(childThreadId);
-    }
+    // Verifica que exista el hilo.
+    childThread = currentThread->getName();
 
-    // Get child thread's exit status.
-    exitStatus = childThread->getExitStatus();
+    // Consigue el estado del hilo
+    exitStatus = childThread->status;
 
-    // Clean up resources of child thread and destroy it.
-    childThread->cleanUpBeforeDestroy();
-    threadManager->deleteThread(childThread);
-
-    // Return the child thread's exit status.
+    // Retorna el estado de hilo
     machine->WriteRegister(2, exitStatus);
 
-	machine->PCForward();*/
+	returnFromSystemCall();
 }
 
 void Nachos_Fork()
-{/*
-	Thread* thread = threadManager->createThread("UserProg");
-	thread->space = memoryManager->shareAddrSpace(currentThread->getThreadID(),
-												  thread->getThreadID());
-	int userFunc = machine->ReadRegister(4);
-
-    // Copy machine registers of current thread to new thread
-    thread->SaveUserState(); 
-
-    // Modify PC/SP register of new thread
-	thread->SetUserRegister(PCReg, userFunc);
-	thread->SetUserRegister(NextPCReg, userFunc + 4);
-    // Every thread has its own private stack space
-	thread->SetUserRegister(StackReg, thread->space->getThreadStackTop(thread->getThreadID()));
-
-	DEBUG('a', "Fork from thread %d -> thread %d\n", 
-			currentThread->getThreadID(),
-			thread->getThreadID());
-
-	thread->Fork(ThreadFuncForUserProg, 0);
-
-	machine->PCForward();*/
+{
+	int func = machine->ReadRegister(4);
+	Thread hiloNuevo = new Thread("Se creo nuevo hilo");
+	
+	tablaOpenFiles->addThread();
+	hiloNuevo->space = new AddrSpace(currentThread->space);
+	hiloNuevo->main = false;
+	hiloNuevo->Fork(inicia, func);
+	
+	returnFromSystemCall();
 }
 
 void Nachos_Yield()
@@ -211,16 +215,11 @@ void Nachos_Yield()
 
 void Nachos_Exit() {
 	int status = machine->ReadRegister(4);
-	int thread = currentThread->getThreadID();
+	int thread = currentThread->getName();
 	
 	memoryManager->deleteAddrSpace(thread);
 	DEBUG('a', "Exit SystemCall.\n");
 	currentThread->setExitStatus(status);
-	
-	if (currentThread->getParent()-getStatus == BLOKED) {
-		scheduler->ReadyToRun(currentThread->getParent());
-		
-	}
 	
 	currentThread->Finish();
 	
@@ -282,6 +281,68 @@ void Nachos_Write(){
 	returnFromSystemCall(); 					// Update the PC registers
 }
 
+void Nachos_SemSignal() {
+	DEBUG('e', (char*)"Thread 0x%x %s V().\n", currentThread,currentThread->getName());
+
+	Semaphore* sema;
+	sema = (Semaphore*)machine->ReadIntRegister(4);
+
+	if (tablaOpenFiles->Search((int *)sema) && sema->typeId == SEMAPHORE_TYPE_ID) {
+		sema->V();
+		machine->WriteIntRegister(2,0);      
+	}
+	else
+	{
+		sprintf(msg,"%d",(int)sema);
+		machine->WriteIntRegister(2,-1);
+	}
+}
+
+void Nachos_SemWait() {
+	DEBUG('e', (char*)"Thread 0x%x %s P().\n", currentThread,currentThread->getName());
+
+	Semaphore* idSema;
+	idSema = (Semaphore*) machine->ReadIntRegister(4);
+
+	if (tablaOpenFiles->Search((int *)idSema) && idSema->typeId == SEMAPHORE_TYPE_ID) {
+		idSema->P();
+		machine->WriteIntRegister(2,0);
+	}
+	else {
+		sprintf(msg,"%d",(int)idSema);			
+		machine->WriteIntRegister(2,-1);
+	}
+}
+void Nachos_SemCreate() {
+		DEBUG('e', (char*)"Thread 0x%x %s new Sema().\n", currentThread,currentThread->getName());
+
+		Semaphore* idSema;
+		int addr_name;
+		char debugName[10];
+		addr_name = machine->ReadIntRegister(4);
+		GetStringParam(addr_name,debugName,10);
+		idSema = new Semaphore(debugName, machine->ReadIntRegister(5) );//Erreurs Ã  lever
+
+		tablaOpenFiles->Append(idSema);
+
+		machine->WriteIntRegister(2, (int) idSema);
+	}
+void Nachos_SemDestroy() {
+	DEBUG('e', (char*)"Thread 0x%x %s delete(sema).\n", currentThread,currentThread->getName());
+
+	Semaphore* sema;
+	sema = (Semaphore*)machine->ReadIntRegister(4);
+
+	if (UserObj->Search((int *)sema) && sema->typeId == SEMAPHORE_TYPE_ID) {
+		delete sema;
+		machine->WriteIntRegister(2,0);
+	}
+	else {
+		sprintf(msg,"%d",(int)sema);
+		machine->WriteIntRegister(2,-1);
+	}
+}
+
 void ExceptionHandler(ExceptionType which) {
 	int type = machine->ReadRegister(2); 
 	if ((which == SyscallException)) {
@@ -332,19 +393,19 @@ void ExceptionHandler(ExceptionType which) {
 				break;
 			//System call #11
 			case SC_SemCreate:
-				//FALTA
+				Nachos_SemCreate();
 				break;
 			//System call #12
 			case SC_SemDestroy:
-				//FALTA
+				Nachos_SemDestroy();
 				break;
 			//System call #13
 			case SC_SemSignal:
-				//FALTA
+				Nachos_SemSignal();
 				break;
 			//System call #14
 			case SC_SemWait:
-				//FALTA
+				Nachos_SemWait();
 				break;
 			default:{
 				printf( "Unexpected syscall exception %d\n", which );

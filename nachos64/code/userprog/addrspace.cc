@@ -59,15 +59,6 @@ SwapHeader (NoffHeader *noffH)
 
 AddrSpace::AddrSpace(OpenFile *executable)
 {
-    //PRUEBA
-    //mapMemo->Mark(0);
-    //mapMemo->Mark(2);
-    //mapMemo->Mark(4);
-    //mapMemo->Mark(6);
-    //mapMemo->Mark(8);
-    //mapMemo->Mark(10);
-    //PRUEBA
-
     NoffHeader noffH;
     unsigned int i, size;
 
@@ -82,10 +73,6 @@ AddrSpace::AddrSpace(OpenFile *executable)
 			+ UserStackSize;	// we need to increase the size
 						// to leave room for the stack ad df ba 00
 
-//Pruebas
-DEBUG('a', "***********Codigo %lu, size %d\n", sizeof(noffH.code.size), size);
-
-//eof Pruebas
     DEBUG('a', "*********NumPAGES %lu, size %d\n", numPages, size);
     numPages = divRoundUp(size, PageSize);
     size = numPages * PageSize;
@@ -103,7 +90,7 @@ DEBUG('a', "***********Codigo %lu, size %d\n", sizeof(noffH.code.size), size);
     for (i = 0; i < numPages; i++) {
 	pageTable[i].virtualPage = i;	// for now, virtual page # = phys page #
 	pageTable[i].physicalPage = mapMemo->Find();	// Localiza la siguiente pagina libre.
-        DEBUG('a', "*******mapMemoFIND %d\n",mapMemo->Find());
+    
 	pageTable[i].valid = true;
 	pageTable[i].use = false;
 	pageTable[i].dirty = false;
@@ -111,7 +98,7 @@ DEBUG('a', "***********Codigo %lu, size %d\n", sizeof(noffH.code.size), size);
 					// a separate page, we could set its 
 					// pages to be read-only
 	
-	//usoPags[pageTable[i].physicalPage] = 1;	// Se añade un hilo al uso de la pag. actual.
+	usoPags[pageTable[i].physicalPage] = 1;	// Se añade un hilo al uso de la pag. actual.
     }
     
 // zero out the entire address space, to zero the unitialized data segment 
@@ -132,6 +119,29 @@ DEBUG('a', "***********Codigo %lu, size %d\n", sizeof(noffH.code.size), size);
 			noffH.initData.size, noffH.initData.inFileAddr);
     }
 
+}
+//SE AÑADE UN NUEVO CONSTRUCTOR A LA CLASE PARA LA CREACION DE HILOS CON FORK.
+AddrSpace::AddrSpace(AddrSpace* espacio) {
+
+	ASSERT(mapMemo->NumClear() >= PaginasPila);
+	
+	numPages = espacio->cantPaginas();
+	pageTable = new TranslationEntry[numPages];
+	
+	for (int i = 0; i < numPages; i++) {
+		pageTable[i].virtualPage = i;
+		if (i < (numPages-PaginasPila)) {
+			pageTable[i].physicalPage = espacio->paginaFisica(i);
+		} else {
+			pageTable[i].physicalPage = mapMemo->Find();
+		}
+		pageTable[i].valid = true;
+		pageTable[i].use = false;
+		pageTable[i].dirty = false;
+		pageTable[i].readOnly = false;
+		
+		usoPags[pageTable[i].physicalPage]++;
+	}
 }
 
 //----------------------------------------------------------------------

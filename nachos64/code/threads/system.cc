@@ -36,8 +36,7 @@ SynchDisk   *synchDisk;
 Machine *machine;	// user program memory and registers
 BitMap *mapMemo;	// Mapa para control de memoria virtual hacia memoria física
 int* usoPags;		// Cantidad de hilos que usan una pagina.
-BitMap *procTable;
-int *procNumber;
+OpenFilesTable* tablaOpenFiles;
 #endif
 
 #ifdef NETWORK
@@ -185,8 +184,7 @@ Initialize(int argc, char **argv)
     machine = new Machine(debugUserProg);	// this must come first
     mapMemo = new BitMap(pagFisicas);		// Se inicializa con 32 paginas tal y como dice machine.h
     usoPags = new int(0);
-    procTable = new BitMap(256); 
-    procNumber = new int(0);	
+    tablaOpenFiles = new OpenFilesTable();	
 #endif
 
 #ifdef FILESYS

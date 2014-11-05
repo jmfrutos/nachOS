@@ -33,14 +33,13 @@ extern Timer *timer;				// the hardware alarm clock
 #ifdef USER_PROGRAM
 #include "machine.h"
 #include "bitmap.h"
-#include "processtable.h"
+#include "OpenFilesTable.h"
+
 extern Machine* machine;	// user program memory and registers
 				// Variables Agregadas por Usuario
 extern BitMap* mapMemo;		// Mapa para control de memoria virtual hacia memoria física
 extern int* usoPags;		// Cantidad de hilos que usan una pagina.
-extern BitMap* procTable;
-extern int* procNumber;
-
+extern OpenFilesTable* tablaOpenFiles;
 #endif
 
 #ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
