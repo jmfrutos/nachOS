@@ -193,17 +193,48 @@ void Nachos_Join()
 	returnFromSystemCall();
 }
 
+void Nachos_Fork() {			// System call 9
+
+	DEBUG( 'u', "Entering Fork System call\n" );
+	// We need to create a new kernel thread to execute the user thread
+	Thread * newT = new Thread( "child to execute Fork code" );
+
+	// We need to share the Open File Table structure with this new child
+
+	// Child and father will also share the same address space, except for the stack
+	// Text, init data and uninit data are shared, a new stack area must be created
+	// for the new child
+	// We suggest the use of a new constructor in AddrSpace class,
+	// This new constructor will copy the shared segments (space variable) from currentThread, passed
+	// as a parameter, and create a new stack for the new child
+	newT->space = new AddrSpace( currentThread->space );
+
+	// We (kernel)-Fork to a new method to execute the child code
+	// Pass the user routine address, now in register 4, as a parameter
+	// Note: in 64 bits register 4 need to be casted to (void *)
+	newT->Fork( NachosForkThread, machine->ReadRegister( 4 ) );
+
+	returnFromSystemCall();	// This adjust the PrevPC, PC, and NextPC registers
+
+	DEBUG( 'u', "Exiting Fork System call\n" );
+}	// Kernel_Fork
+
 void Nachos_Fork()
 {
-	int func = machine->ReadRegister(4);
+	DEBUG( 'u', "Entering Fork System call\n" );
+	// We need to create a new kernel thread to execute the user thread
 	Thread hiloNuevo = new Thread("Se creo nuevo hilo");
-	
+	// We need to share the Open File Table structure with this new child
 	tablaOpenFiles->addThread();
 	hiloNuevo->space = new AddrSpace(currentThread->space);
 	hiloNuevo->main = false;
-	hiloNuevo->Fork(NachosForkThread, func);
+	// We (kernel)-Fork to a new method to execute the child code
+	// Pass the user routine address, now in register 4, as a parameter
+	// Note: in 64 bits register 4 need to be casted to (void *)
+	hiloNuevo->Fork(NachosForkThread, machine->ReadRegister(4););
 	
 	returnFromSystemCall();
+	DEBUG( 'u', "Exiting Fork System call\n" );
 }
 
 // Pass the user routine address as a parameter for this function
