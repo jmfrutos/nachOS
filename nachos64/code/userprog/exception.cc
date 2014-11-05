@@ -201,10 +201,36 @@ void Nachos_Fork()
 	tablaOpenFiles->addThread();
 	hiloNuevo->space = new AddrSpace(currentThread->space);
 	hiloNuevo->main = false;
-	hiloNuevo->Fork(inicia, func);
+	hiloNuevo->Fork(NachosForkThread, func);
 	
 	returnFromSystemCall();
 }
+
+// Pass the user routine address as a parameter for this function
+// This function is similar to "StartProcess" in "progtest.cc" file under "userprog"
+// Requires a correct AddrSpace setup to work well
+
+//void NachosForkThread( int p ) { // for 32 bits version
+void NachosForkThread( void * p ) { // for 64 bits version
+
+    AddrSpace *space;
+
+    space = currentThread->space;
+    space->InitRegisters();             // set the initial register values
+    space->RestoreState();              // load page table register
+
+// Set the return address for this thread to the same as the main thread
+// This will lead this thread to call the exit system call and finish
+    machine->WriteRegister( RetAddrReg, 4 );
+
+    machine->WriteRegister( PCReg, (long) p );
+    machine->WriteRegister( NextPCReg, p + 4 );
+
+    machine->Run();                     // jump to the user progam
+    ASSERT(FALSE);
+
+}
+
 
 void Nachos_Yield()
 {
